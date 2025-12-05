@@ -1,0 +1,75 @@
+name: Deploy to jquiroz.net
+
+on:
+  push:
+    branches:
+      - main   # o la rama que quieras usar
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SITE_DIR: ${{ secrets.SITE_DIR }}
+      GIT_REPO_URL: ${{ secrets.GIT_REPO_URL }}
+      BRANCH: main
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "Host *" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+
+      - name: Deploy on server
+        run: |
+          ssh "${SSH_USER}@${SSH_HOST}" << 'EOF'
+            set -e
+
+            # Variables que vienen del entorno del job
+            SITE_DIR="${SITE_DIR}"
+            GIT_REPO_URL="${GIT_REPO_URL}"
+            BRANCH="${BRANCH}"
+
+            cd /home/pweb/sites
+            mkdir -p "$SITE_DIR"
+            cd "$SITE_DIR"
+
+            if [ ! -d .git ]; then
+              echo "Primera vez: clonando el repositorio del alumno..."
+              # Clona el fork del alumno directamente en esta carpeta
+              git clone "$GIT_REPO_URL" .
+            else
+              echo "Repositorio ya existente: haciendo fetch..."
+              git fetch --all
+            fi
+
+            # Ahora comparamos commits local vs remoto
+            LOCAL=$(git rev-parse HEAD)
+            REMOTE=$(git rev-parse origin/"${BRANCH}")
+
+            if [ "$LOCAL" != "$REMOTE" ]; then
+              echo "Hay nueva versión, haciendo pull..."
+              git pull origin "${BRANCH}"
+
+              # Si el alumno usa docker-compose:
+              if [ -f docker-compose.yml ] || [ -f docker-compose.yaml ]; then
+                echo "Reiniciando contenedores con Docker Compose..."
+                docker compose down
+                docker compose pull || true
+                docker compose up -d --build
+                echo "Despliegue con Docker completado."
+              else
+                echo "No se encontró docker-compose, solo se actualizaron archivos."
+              fi
+            else
+              echo "El servidor ya tiene la última versión, no se hace nada."
+            fi
+          EOF
