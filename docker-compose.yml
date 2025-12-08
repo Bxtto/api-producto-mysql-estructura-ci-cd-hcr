@@ -1,7 +1,6 @@
 services:
   mysql-productos:
     image: mysql:8.0
-    container_name: mysql-productos
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root123456
@@ -20,7 +19,6 @@ services:
 
   api:
     build: .
-    container_name: api-productos
     restart: always
     depends_on:
       mysql-productos:
