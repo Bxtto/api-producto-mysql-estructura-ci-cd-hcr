@@ -44,10 +44,13 @@ jobs:
             mkdir -p "\$PROJECT_PATH"
             cd "\$PROJECT_PATH"
 
+            FIRST_CLONE=0
+
             if [ ! -d .git ]; then
               if [ -z "\$(ls -A .)" ]; then
                 echo ">>> Primera vez: clonando ${GIT_REPO_URL}"
                 git clone "${GIT_REPO_URL}" .
+                FIRST_CLONE=1
               else
                 echo "ERROR: La carpeta \$PROJECT_PATH no está vacía y no es un repo git."
                 exit 1
@@ -60,22 +63,30 @@ jobs:
             LOCAL=\$(git rev-parse HEAD || echo "")
             REMOTE=\$(git rev-parse origin/${BRANCH} || echo "")
 
+            CHANGED=0
             if [ "\$LOCAL" != "\$REMOTE" ]; then
               echo ">>> Hay nueva versión, haciendo git pull..."
               git pull origin "${BRANCH}"
-
-              if [ -f docker-compose.yml ] || [ -f docker-compose.yaml ]; then
-                echo ">>> Reiniciando contenedores..."
-                docker compose down
-                docker compose pull || true
-                docker compose up -d --build
-              else
-                echo ">>> No hay docker-compose, solo se actualizaron archivos."
-              fi
+              CHANGED=1
             else
-              echo ">>> Todo está actualizado."
+              echo ">>> Commits local y remoto son iguales."
             fi
 
-            echo "=== Despliegue completo ==="
+            # Solo desplegamos si es el primer clone o hubo cambios
+            if [ "\$FIRST_CLONE" = "1" ] || [ "\$CHANGED" = "1" ]; then
+              echo ">>> Ejecutando despliegue con Docker Compose..."
+              if [ -f docker-compose.yml ] || [ -f docker-compose.yaml ]; then
+                docker compose down || true
+                docker compose pull || true
+                docker compose up -d --build
+                echo ">>> Despliegue completado."
+              else
+                echo ">>> No se encontró docker-compose.yml, nada que levantar."
+              fi
+            else
+              echo ">>> No hubo cambios y no es primer despliegue. No se reinician contenedores."
+            fi
+
+            echo "=== Fin del despliegue ==="
           EOF
 
