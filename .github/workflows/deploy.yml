@@ -43,12 +43,6 @@ jobs:
             mkdir -p "\$PROJECT_PATH"
             cd "\$PROJECT_PATH"
 
-            # Construir nombre de proyecto y limpiarlo
-            RAW_NAME="${SITE_DIR}_${PROJECT_DIR}"
-            CLEAN_NAME=\$(printf "%s" "\$RAW_NAME" | tr 'A-Z' 'a-z' | tr -d ' \r\n')
-            export COMPOSE_PROJECT_NAME="\$CLEAN_NAME"
-            echo "COMPOSE_PROJECT_NAME=\$COMPOSE_PROJECT_NAME"
-
             FIRST_CLONE=0
 
             if [ ! -d .git ]; then
